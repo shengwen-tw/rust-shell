@@ -1,5 +1,48 @@
 use std::collections::HashMap;
 
+enum TermKeys {
+    NullCh = 0,      /* null character */
+    CtrlA = 1,       /* ctrl + a */
+    CtrlB = 2,       /* ctrl + b */
+    CtrlC = 3,       /* ctrl + c */
+    CtrlD = 4,       /* ctrl + d */
+    CtrlE = 5,       /* ctrl + e */
+    CtrlF = 6,       /* ctrl + f */
+    CtrlG = 7,       /* ctrl + g */
+    CtrlH = 8,       /* ctrl + h */
+    Tab = 9,         /* tab */
+    CtrlJ = 10,      /* ctrl + j */
+    CtrlK = 11,      /* ctrl + k */
+    CtrlL = 12,      /* ctrl + l */
+    Enter = 13,      /* enter */
+    CtrlN = 14,      /* ctrl + n */
+    CtrlO = 15,      /* ctrl + o */
+    CtrlP = 16,      /* ctrl + p */
+    CtrlQ = 17,      /* ctrl + r */
+    CtrlR = 18,      /* ctrl + r */
+    CtrlS = 19,      /* ctrl + s */
+    CtrlT = 20,      /* ctrl + t */
+    CtrlU = 21,      /* ctrl + u */
+    CtrlW = 23,      /* ctrl + w */
+    CtrlX = 24,      /* ctrl + x */
+    CtrlY = 25,      /* ctrl + y */
+    CtrlZ = 26,      /* ctrl + z */
+    EscSeq1 = 27,    /* first byte of the vt100/xterm escape sequence */
+    Space = 32,      /* space */
+    Delete = 51,     /* delete, third byte of the xterm escape sequence */
+    UpArrow = 65,    /* up arrow, third byte of the xterm escape sequence */
+    DownArrow = 66,  /* down arrow, third byte of the xterm escape sequence */
+    RightArrow = 67, /* right arrow, third byte of the xterm escape sequence */
+    LeftArrow = 68,  /* left arrow, third byte of the xterm escape sequence */
+    EndXterm = 70,   /* end, third byte of the xterm escape sequence */
+    EndVt100 = 52,   /* end, third byte of the vt100 escape sequence */
+    HomeXterm = 72,  /* home, third byte of the escape sequence */
+    HomeVt100 = 49,  /* home, third byte of the vt100 escape sequence */
+    EscSeq2 = 91,    /* second byte of the escape sequence */
+    EscSeq4 = 126,   /* fourth byte of the vt100 escape sequence */
+    Backspace = 127, /* backspace */
+}
+
 struct Shell<'a> {
     cmds: HashMap<&'a str, Box<dyn Fn(Vec<&str>, usize)>>,
 }
