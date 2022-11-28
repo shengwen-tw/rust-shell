@@ -1,8 +1,11 @@
 use std::char;
 use std::collections::HashMap;
 use std::process;
+use std::str;
 //use std::io::{self, Write};
 use ncurses::*;
+
+const CMD_LEN_MAX: usize = 50;
 
 enum TermKeys {
     NullCh = 0,      /* null character */
@@ -49,19 +52,34 @@ enum TermKeys {
 
 struct Shell<'a> {
     cmds: HashMap<&'a str, Box<dyn Fn(Vec<&str>, usize)>>,
+    cursor_pos: usize,
+    char_cnt: usize,
+    read_history: bool,
+    prompt_msg: &'a str,
+    prompt_len: usize,
+    buf: [u32; CMD_LEN_MAX],
 }
 
 impl<'a> Shell<'a> {
-    fn new() -> Shell<'a> {
+    fn new(prompt_msg: &'a str) -> Shell<'a> {
         Shell {
             cmds: HashMap::new(),
+            cursor_pos: 0,
+            char_cnt: 0,
+            read_history: false,
+            prompt_msg,
+            prompt_len: prompt_msg.len(),
+            buf: [0; CMD_LEN_MAX],
         }
     }
 
-    fn init(&self) {
+    fn start(&self) {
         ncurses::initscr();
         ncurses::raw();
+        ncurses::nonl();
         ncurses::noecho();
+
+        Shell::puts(self.prompt_msg);
     }
 
     fn getc() -> i32 {
@@ -73,53 +91,218 @@ impl<'a> Shell<'a> {
     }
 
     fn cls() {
-        Shell::puts("\x1b[H\x1b[2J");
+        ncurses::clear();
     }
 
-    fn ctrl_c_handler() {
+    fn ctrl_c_handler(&self) {
         ncurses::endwin();
         std::process::exit(0);
     }
 
-    fn listen(&self) {
-        loop {
-            let ch = Shell::getc();
-            //Shell::puts(format!("read {}", ch).as_ref());
+    fn insert_char(&mut self, c: i32) {
+        for i in (self.cursor_pos..self.char_cnt).rev() {
+            self.buf[i] = self.buf[i - 1];
+        }
 
-            match ch {
-                ch if ch == TermKeys::NullCh as i32 => return,
-                ch if ch == TermKeys::CtrlA as i32 => {}
-                ch if ch == TermKeys::CtrlB as i32 => {}
-                ch if ch == TermKeys::CtrlC as i32 => {
-                    Shell::ctrl_c_handler();
+        self.char_cnt += 1;
+        self.buf[self.char_cnt] = 0;
+
+        self.buf[self.cursor_pos] = c as u32;
+        self.cursor_pos += 1;
+    }
+
+    fn remove_char(&mut self, remove_pos: usize) {
+        println!("in. cursor_pos={}", self.cursor_pos);
+
+        println!("remove pos:{}, char_cnt:{}", remove_pos, self.char_cnt);
+
+        for i in (remove_pos - 1)..(self.char_cnt) {
+            println!("triggered, i={}", i);
+            self.buf[i] = self.buf[i + 1];
+        }
+        println!("not crashed yet, cursor_pos={}", self.cursor_pos);
+
+        self.buf[self.char_cnt] = 0;
+        self.char_cnt -= 1;
+        self.cursor_pos -= 1;
+
+        if self.cursor_pos > self.char_cnt {
+            self.cursor_pos = self.char_cnt;
+        }
+    }
+
+    fn refresh_line(&self) {
+        /* clear the current line */
+        let mut cur_x = 0;
+        let mut cur_y = 0;
+        ncurses::getyx(stdscr(), &mut cur_y, &mut cur_x);
+        ncurses::mv(cur_y, 0);
+        ncurses::clrtoeol();
+
+        /* print prompt message */
+        Shell::puts(self.prompt_msg);
+
+        /* print user input */
+        for i in 0..self.char_cnt {
+            //XXX: not sure if there is a better way to write this line
+            Shell::puts(format!("{}", char::from_u32(self.buf[i] as u32).unwrap()).as_ref());
+        }
+
+        /* shift cursor position */
+        ncurses::mv(cur_y, (self.prompt_len + self.cursor_pos) as i32);
+    }
+
+    fn cursor_shift_one_left(&mut self) {
+        if self.cursor_pos > 0 {
+            self.cursor_pos -= 1;
+            self.refresh_line();
+        }
+    }
+
+    fn cursor_shift_one_right(&mut self) {
+        if self.cursor_pos < self.char_cnt {
+            self.cursor_pos += 1;
+            self.refresh_line();
+        }
+    }
+
+    fn reset_data(&mut self) {
+        self.cursor_pos = 0;
+        self.char_cnt = 0;
+        self.read_history = false;
+    }
+
+    fn push_new_history(&self) {
+        //TODO
+    }
+
+    fn listen(&mut self) {
+        //Shell::puts(self.prompt_msg);
+
+        loop {
+            let c = Shell::getc();
+            //Shell::puts(format!("read {}", c).as_ref());
+
+            match c {
+                c if c == TermKeys::NullCh as i32 => return,
+                c if c == TermKeys::CtrlA as i32 => {
+                    self.cursor_pos = 0;
+                    self.refresh_line();
                     return;
                 }
-                ch if ch == TermKeys::CtrlD as i32 => return,
-                ch if ch == TermKeys::CtrlE as i32 => {}
-                ch if ch == TermKeys::CtrlF as i32 => {}
-                ch if ch == TermKeys::CtrlG as i32 => return,
-                ch if ch == TermKeys::CtrlH as i32 => return,
-                ch if ch == TermKeys::Tab as i32 => return,
-                ch if ch == TermKeys::CtrlJ as i32 => return,
-                ch if ch == TermKeys::Enter as i32 => {}
-                ch if ch == TermKeys::CtrlK as i32 => return,
-                ch if ch == TermKeys::CtrlL as i32 => return,
-                ch if ch == TermKeys::CtrlN as i32 => return,
-                ch if ch == TermKeys::CtrlO as i32 => return,
-                ch if ch == TermKeys::CtrlP as i32 => return,
-                ch if ch == TermKeys::CtrlQ as i32 => return,
-                ch if ch == TermKeys::CtrlR as i32 => return,
-                ch if ch == TermKeys::CtrlS as i32 => return,
-                ch if ch == TermKeys::CtrlT as i32 => return,
-                ch if ch == TermKeys::CtrlU as i32 => {}
-                ch if ch == TermKeys::CtrlW as i32 => return,
-                ch if ch == TermKeys::CtrlX as i32 => return,
-                ch if ch == TermKeys::CtrlY as i32 => return,
-                ch if ch == TermKeys::CtrlZ as i32 => return,
-                ch if ch == TermKeys::EscSeq1 as i32 => {}
-                ch if ch == TermKeys::Backspace as i32 => {}
-                ch if ch == TermKeys::Space as i32 => {}
-                _ => {}
+                c if c == TermKeys::CtrlB as i32 => {
+                    self.cursor_shift_one_left();
+                    return;
+                }
+                c if c == TermKeys::CtrlC as i32 => {
+                    self.ctrl_c_handler();
+                    return;
+                }
+                c if c == TermKeys::CtrlD as i32 => return,
+                c if c == TermKeys::CtrlE as i32 => {
+                    if self.char_cnt > 0 {
+                        self.cursor_pos = self.char_cnt;
+                        self.refresh_line();
+                    }
+                    return;
+                }
+                c if c == TermKeys::CtrlF as i32 => {
+                    self.cursor_shift_one_right();
+                    return;
+                }
+                c if c == TermKeys::CtrlG as i32 => return,
+                c if c == TermKeys::CtrlH as i32 => return,
+                c if c == TermKeys::Tab as i32 => return,
+                c if c == TermKeys::CtrlJ as i32 => return,
+                c if c == TermKeys::Enter as i32 => {
+                    if self.char_cnt > 0 {
+                        Shell::puts("\n\r");
+                        self.reset_data();
+                        self.push_new_history();
+                    } else {
+                        Shell::puts("\n\r");
+                        Shell::puts(self.prompt_msg);
+                    }
+                    return;
+                }
+                c if c == TermKeys::CtrlK as i32 => return,
+                c if c == TermKeys::CtrlL as i32 => return,
+                c if c == TermKeys::CtrlN as i32 => return,
+                c if c == TermKeys::CtrlO as i32 => return,
+                c if c == TermKeys::CtrlP as i32 => return,
+                c if c == TermKeys::CtrlQ as i32 => return,
+                c if c == TermKeys::CtrlR as i32 => return,
+                c if c == TermKeys::CtrlS as i32 => return,
+                c if c == TermKeys::CtrlT as i32 => return,
+                c if c == TermKeys::CtrlU as i32 => {
+                    self.buf[0] = 0;
+                    self.char_cnt = 0;
+                    self.cursor_pos = 0;
+                    self.refresh_line();
+                    return;
+                }
+                c if c == TermKeys::CtrlW as i32 => return,
+                c if c == TermKeys::CtrlX as i32 => return,
+                c if c == TermKeys::CtrlY as i32 => return,
+                c if c == TermKeys::CtrlZ as i32 => return,
+                c if c == TermKeys::EscSeq1 as i32 => {
+                    let seq0 = Shell::getc();
+                    let seq1 = Shell::getc();
+                    if seq0 == TermKeys::EscSeq2 as i32 {
+                        if seq1 == TermKeys::UpArrow as i32 {
+                            //TODO
+                        } else if seq1 == TermKeys::DownArrow as i32 {
+                            //TODO
+                        } else if seq1 == TermKeys::RightArrow as i32 {
+                            self.cursor_shift_one_right();
+                        } else if seq1 == TermKeys::LeftArrow as i32 {
+                            self.cursor_shift_one_left();
+                        } else if seq1 == TermKeys::HomeXterm as i32 {
+                            self.cursor_pos = 0;
+                            self.refresh_line();
+                        } else if seq1 == TermKeys::HomeVt100 as i32 {
+                            self.cursor_pos = 0;
+                            self.refresh_line();
+                            Shell::getc();
+                        } else if seq1 == TermKeys::EndXterm as i32 {
+                            if self.char_cnt > 0 {
+                                self.cursor_pos = self.char_cnt;
+                                self.refresh_line();
+                            }
+                        } else if seq1 == TermKeys::EndVt100 as i32 {
+                            if self.char_cnt > 0 {
+                                self.cursor_pos = self.char_cnt;
+                                self.refresh_line();
+                            }
+                        } else if seq1 == TermKeys::Delete as i32 {
+                            let seq = Shell::getc();
+                            if seq == TermKeys::EscSeq4 as i32
+                                && self.char_cnt != 0
+                                && self.cursor_pos != self.char_cnt
+                            {
+                                self.remove_char(self.cursor_pos + 1);
+                                self.cursor_pos += 1;
+                                self.refresh_line();
+                            }
+                        }
+                    }
+                    return;
+                }
+                c if c == TermKeys::Backspace as i32 => {
+                    if (self.char_cnt != 0) && (self.cursor_pos != 0) {
+                        self.remove_char(self.cursor_pos);
+                        self.refresh_line();
+                    }
+                    return;
+                }
+                _ => {
+                    if self.char_cnt != (CMD_LEN_MAX - 1) {
+                        self.read_history = false;
+                        self.insert_char(c);
+                        self.refresh_line();
+                    }
+                    return;
+                }
             };
         }
     }
@@ -168,15 +351,15 @@ fn shell_cmd_clear(argc: Vec<&str>, argv: usize) {
 }
 
 fn main() {
-    let mut shell = Shell::new();
+    let mut shell = Shell::new("shell > ");
     shell.add_command("help", shell_cmd_help);
     shell.add_command("clear", shell_cmd_clear);
 
-    shell.init();
+    shell.start();
 
     loop {
         shell.listen();
-        shell.parse("test");
+        //shell.parse("test");
     }
 
     /*
