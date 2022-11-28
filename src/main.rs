@@ -100,7 +100,7 @@ impl<'a> Shell<'a> {
     }
 
     fn insert_char(&mut self, c: i32) {
-        for i in (self.cursor_pos..self.char_cnt).rev() {
+        for i in (self.cursor_pos + 1..self.char_cnt + 1).rev() {
             self.buf[i] = self.buf[i - 1];
         }
 
@@ -111,20 +111,18 @@ impl<'a> Shell<'a> {
         self.cursor_pos += 1;
     }
 
-    fn remove_char(&mut self, remove_pos: usize) {
-        println!("in. cursor_pos={}", self.cursor_pos);
-
-        println!("remove pos:{}, char_cnt:{}", remove_pos, self.char_cnt);
-
+    fn remove_char(&mut self, remove_pos: usize, cursor_fixed: bool) {
         for i in (remove_pos - 1)..(self.char_cnt) {
-            println!("triggered, i={}", i);
             self.buf[i] = self.buf[i + 1];
         }
-        println!("not crashed yet, cursor_pos={}", self.cursor_pos);
 
         self.buf[self.char_cnt] = 0;
         self.char_cnt -= 1;
-        self.cursor_pos -= 1;
+
+        /* cursor shift left by on only if the remove event is triggered by the backspace */
+        if cursor_fixed == false {
+            self.cursor_pos -= 1;
+        }
 
         if self.cursor_pos > self.char_cnt {
             self.cursor_pos = self.char_cnt;
@@ -280,8 +278,7 @@ impl<'a> Shell<'a> {
                                 && self.char_cnt != 0
                                 && self.cursor_pos != self.char_cnt
                             {
-                                self.remove_char(self.cursor_pos + 1);
-                                self.cursor_pos += 1;
+                                self.remove_char(self.cursor_pos + 1, true);
                                 self.refresh_line();
                             }
                         }
@@ -290,7 +287,7 @@ impl<'a> Shell<'a> {
                 }
                 c if c == TermKeys::Backspace as i32 => {
                     if (self.char_cnt != 0) && (self.cursor_pos != 0) {
-                        self.remove_char(self.cursor_pos);
+                        self.remove_char(self.cursor_pos, false);
                         self.refresh_line();
                     }
                     return;
