@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io;
 
 enum TermKeys {
     NullCh = 0,      /* null character */
@@ -77,12 +78,22 @@ impl<'a> Shell<'a> {
     }
 }
 
-fn shell_cmd_help(_argc: Vec<&str>, _argv: usize) {
-    println!("help");
+fn shell_cmd_help(argc: Vec<&str>, argv: usize) {
+    print!("argc: ");
+    for arg in argc {
+        print!("{} ", arg);
+    }
+
+    println!("\n\rargv: {}", argv);
 }
 
-fn shell_cmd_clear(_argc: Vec<&str>, _argv: usize) {
-    println!("clear");
+fn shell_cmd_clear(argc: Vec<&str>, argv: usize) {
+    print!("argc: ");
+    for arg in argc {
+        print!("{} ", arg);
+    }
+
+    println!("\n\rargv: {}", argv);
 }
 
 fn main() {
@@ -90,5 +101,11 @@ fn main() {
     shell.add_command("help", shell_cmd_help);
     shell.add_command("clear", shell_cmd_clear);
 
-    shell.parse("clear 1 2 3");
+    let stdin = io::stdin();
+    let mut new_cmd = String::new();
+    loop {
+        stdin.read_line(&mut new_cmd);
+        shell.parse(new_cmd.as_str());
+        new_cmd.clear();
+    }
 }
