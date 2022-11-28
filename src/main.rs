@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io;
+use std::io::{self, Write};
 
 enum TermKeys {
     NullCh = 0,      /* null character */
@@ -55,11 +55,23 @@ impl<'a> Shell<'a> {
         }
     }
 
+    fn getc() -> char {
+        ' '
+    }
+
+    fn puts(s: &str) {
+        io::stdout().write(s.as_bytes());
+    }
+
+    fn cls() {
+        Shell::puts("\x1b[H\x1b[2J");
+    }
+
     fn add_command(&mut self, cmd_name: &'a str, cmd_func: fn(Vec<&str>, usize)) {
         self.cmds.insert(cmd_name, Box::new(cmd_func));
     }
 
-    fn parse(&self, cmd: &str) {
+    fn parse(&mut self, cmd: &str) {
         /* split string into vector of arguments */
         let argc: Vec<&str> = cmd.split_whitespace().collect();
         let argv = argc.len();
@@ -88,6 +100,8 @@ fn shell_cmd_help(argc: Vec<&str>, argv: usize) {
 }
 
 fn shell_cmd_clear(argc: Vec<&str>, argv: usize) {
+    Shell::cls();
+
     print!("argc: ");
     for arg in argc {
         print!("{} ", arg);
