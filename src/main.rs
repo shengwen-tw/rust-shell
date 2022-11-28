@@ -1,5 +1,8 @@
+use std::char;
 use std::collections::HashMap;
-use std::io::{self, Write};
+use std::process;
+//use std::io::{self, Write};
+use ncurses::*;
 
 enum TermKeys {
     NullCh = 0,      /* null character */
@@ -55,16 +58,70 @@ impl<'a> Shell<'a> {
         }
     }
 
-    fn getc() -> char {
-        ' '
+    fn init(&self) {
+        ncurses::initscr();
+        ncurses::raw();
+        ncurses::noecho();
+    }
+
+    fn getc() -> i32 {
+        ncurses::getch()
     }
 
     fn puts(s: &str) {
-        io::stdout().write(s.as_bytes());
+        ncurses::addstr(s);
     }
 
     fn cls() {
         Shell::puts("\x1b[H\x1b[2J");
+    }
+
+    fn ctrl_c_handler() {
+        ncurses::endwin();
+        std::process::exit(0);
+    }
+
+    fn listen(&self) {
+        loop {
+            let ch = Shell::getc();
+            //Shell::puts(format!("read {}", ch).as_ref());
+
+            match ch {
+                ch if ch == TermKeys::NullCh as i32 => return,
+                ch if ch == TermKeys::CtrlA as i32 => {}
+                ch if ch == TermKeys::CtrlB as i32 => {}
+                ch if ch == TermKeys::CtrlC as i32 => {
+                    Shell::ctrl_c_handler();
+                    return;
+                }
+                ch if ch == TermKeys::CtrlD as i32 => return,
+                ch if ch == TermKeys::CtrlE as i32 => {}
+                ch if ch == TermKeys::CtrlF as i32 => {}
+                ch if ch == TermKeys::CtrlG as i32 => return,
+                ch if ch == TermKeys::CtrlH as i32 => return,
+                ch if ch == TermKeys::Tab as i32 => return,
+                ch if ch == TermKeys::CtrlJ as i32 => return,
+                ch if ch == TermKeys::Enter as i32 => {}
+                ch if ch == TermKeys::CtrlK as i32 => return,
+                ch if ch == TermKeys::CtrlL as i32 => return,
+                ch if ch == TermKeys::CtrlN as i32 => return,
+                ch if ch == TermKeys::CtrlO as i32 => return,
+                ch if ch == TermKeys::CtrlP as i32 => return,
+                ch if ch == TermKeys::CtrlQ as i32 => return,
+                ch if ch == TermKeys::CtrlR as i32 => return,
+                ch if ch == TermKeys::CtrlS as i32 => return,
+                ch if ch == TermKeys::CtrlT as i32 => return,
+                ch if ch == TermKeys::CtrlU as i32 => {}
+                ch if ch == TermKeys::CtrlW as i32 => return,
+                ch if ch == TermKeys::CtrlX as i32 => return,
+                ch if ch == TermKeys::CtrlY as i32 => return,
+                ch if ch == TermKeys::CtrlZ as i32 => return,
+                ch if ch == TermKeys::EscSeq1 as i32 => {}
+                ch if ch == TermKeys::Backspace as i32 => {}
+                ch if ch == TermKeys::Space as i32 => {}
+                _ => {}
+            };
+        }
     }
 
     fn add_command(&mut self, cmd_name: &'a str, cmd_func: fn(Vec<&str>, usize)) {
@@ -115,11 +172,20 @@ fn main() {
     shell.add_command("help", shell_cmd_help);
     shell.add_command("clear", shell_cmd_clear);
 
-    let stdin = io::stdin();
-    let mut new_cmd = String::new();
+    shell.init();
+
     loop {
-        stdin.read_line(&mut new_cmd);
-        shell.parse(new_cmd.as_str());
-        new_cmd.clear();
+        shell.listen();
+        shell.parse("test");
     }
+
+    /*
+        let stdin = io::stdin();
+        let mut new_cmd = String::new();
+        loop {
+            stdin.read_line(&mut new_cmd);
+            shell.parse(new_cmd.as_str());
+            new_cmd.clear();
+        }
+    */
 }
