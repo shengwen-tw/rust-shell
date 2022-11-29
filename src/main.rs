@@ -1,9 +1,8 @@
+use ncurses::*;
 use std::char;
 use std::collections::HashMap;
 use std::process;
 use std::str;
-//use std::io::{self, Write};
-use ncurses::*;
 
 const CMD_LEN_MAX: usize = 50;
 
@@ -79,7 +78,7 @@ impl<'a> Shell<'a> {
         ncurses::nonl();
         ncurses::noecho();
 
-        Shell::puts(self.prompt_msg);
+        //Shell::puts(self.prompt_msg);
     }
 
     fn getc() -> i32 {
@@ -129,6 +128,13 @@ impl<'a> Shell<'a> {
         }
     }
 
+    fn get_command_string(&self, cmd_ref: &mut String) {
+        for i in 0..self.char_cnt {
+            let c = char::from_u32(self.buf[i] as u32).unwrap();
+            cmd_ref.push(c);
+        }
+    }
+
     fn refresh_line(&self) {
         /* clear the current line */
         let mut cur_x = 0;
@@ -141,10 +147,9 @@ impl<'a> Shell<'a> {
         Shell::puts(self.prompt_msg);
 
         /* print user input */
-        for i in 0..self.char_cnt {
-            //XXX: not sure if there is a better way to write this line
-            Shell::puts(format!("{}", char::from_u32(self.buf[i] as u32).unwrap()).as_ref());
-        }
+        let mut cmd = String::new();
+        self.get_command_string(&mut cmd);
+        Shell::puts(cmd.as_str());
 
         /* shift cursor position */
         ncurses::mv(cur_y, (self.prompt_len + self.cursor_pos) as i32);
@@ -174,75 +179,80 @@ impl<'a> Shell<'a> {
         //TODO
     }
 
-    fn listen(&mut self) {
-        //Shell::puts(self.prompt_msg);
+    fn listen(&mut self) -> Option<String> {
+        Shell::puts(self.prompt_msg);
 
         loop {
             let c = Shell::getc();
             //Shell::puts(format!("read {}", c).as_ref());
 
             match c {
-                c if c == TermKeys::NullCh as i32 => return,
+                c if c == TermKeys::NullCh as i32 => continue,
                 c if c == TermKeys::CtrlA as i32 => {
                     self.cursor_pos = 0;
                     self.refresh_line();
-                    return;
+                    continue;
                 }
                 c if c == TermKeys::CtrlB as i32 => {
                     self.cursor_shift_one_left();
-                    return;
+                    continue;
                 }
                 c if c == TermKeys::CtrlC as i32 => {
                     self.ctrl_c_handler();
-                    return;
+                    return None;
                 }
-                c if c == TermKeys::CtrlD as i32 => return,
+                c if c == TermKeys::CtrlD as i32 => continue,
                 c if c == TermKeys::CtrlE as i32 => {
                     if self.char_cnt > 0 {
                         self.cursor_pos = self.char_cnt;
                         self.refresh_line();
                     }
-                    return;
+                    continue;
                 }
                 c if c == TermKeys::CtrlF as i32 => {
                     self.cursor_shift_one_right();
-                    return;
+                    continue;
                 }
-                c if c == TermKeys::CtrlG as i32 => return,
-                c if c == TermKeys::CtrlH as i32 => return,
-                c if c == TermKeys::Tab as i32 => return,
-                c if c == TermKeys::CtrlJ as i32 => return,
+                c if c == TermKeys::CtrlG as i32 => continue,
+                c if c == TermKeys::CtrlH as i32 => continue,
+                c if c == TermKeys::Tab as i32 => continue,
+                c if c == TermKeys::CtrlJ as i32 => continue,
                 c if c == TermKeys::Enter as i32 => {
+                    /* generate the command string for function return */
+                    let mut cmd = String::new();
+                    self.get_command_string(&mut cmd);
+
+                    /* push command to the history if it is not empty */
                     if self.char_cnt > 0 {
-                        Shell::puts("\n\r");
-                        self.reset_data();
                         self.push_new_history();
-                    } else {
-                        Shell::puts("\n\r");
-                        Shell::puts(self.prompt_msg);
                     }
-                    return;
+
+                    /* move to next line */
+                    self.reset_data();
+                    Shell::puts("\n\r");
+
+                    return Some(cmd);
                 }
-                c if c == TermKeys::CtrlK as i32 => return,
-                c if c == TermKeys::CtrlL as i32 => return,
-                c if c == TermKeys::CtrlN as i32 => return,
-                c if c == TermKeys::CtrlO as i32 => return,
-                c if c == TermKeys::CtrlP as i32 => return,
-                c if c == TermKeys::CtrlQ as i32 => return,
-                c if c == TermKeys::CtrlR as i32 => return,
-                c if c == TermKeys::CtrlS as i32 => return,
-                c if c == TermKeys::CtrlT as i32 => return,
+                c if c == TermKeys::CtrlK as i32 => continue,
+                c if c == TermKeys::CtrlL as i32 => continue,
+                c if c == TermKeys::CtrlN as i32 => continue,
+                c if c == TermKeys::CtrlO as i32 => continue,
+                c if c == TermKeys::CtrlP as i32 => continue,
+                c if c == TermKeys::CtrlQ as i32 => continue,
+                c if c == TermKeys::CtrlR as i32 => continue,
+                c if c == TermKeys::CtrlS as i32 => continue,
+                c if c == TermKeys::CtrlT as i32 => continue,
                 c if c == TermKeys::CtrlU as i32 => {
                     self.buf[0] = 0;
                     self.char_cnt = 0;
                     self.cursor_pos = 0;
                     self.refresh_line();
-                    return;
+                    continue;
                 }
-                c if c == TermKeys::CtrlW as i32 => return,
-                c if c == TermKeys::CtrlX as i32 => return,
-                c if c == TermKeys::CtrlY as i32 => return,
-                c if c == TermKeys::CtrlZ as i32 => return,
+                c if c == TermKeys::CtrlW as i32 => continue,
+                c if c == TermKeys::CtrlX as i32 => continue,
+                c if c == TermKeys::CtrlY as i32 => continue,
+                c if c == TermKeys::CtrlZ as i32 => continue,
                 c if c == TermKeys::EscSeq1 as i32 => {
                     let seq0 = Shell::getc();
                     let seq1 = Shell::getc();
@@ -283,14 +293,14 @@ impl<'a> Shell<'a> {
                             }
                         }
                     }
-                    return;
+                    continue;
                 }
                 c if c == TermKeys::Backspace as i32 => {
                     if (self.char_cnt != 0) && (self.cursor_pos != 0) {
                         self.remove_char(self.cursor_pos, false);
                         self.refresh_line();
                     }
-                    return;
+                    continue;
                 }
                 _ => {
                     if self.char_cnt != (CMD_LEN_MAX - 1) {
@@ -298,7 +308,7 @@ impl<'a> Shell<'a> {
                         self.insert_char(c);
                         self.refresh_line();
                     }
-                    return;
+                    continue;
                 }
             };
         }
@@ -322,29 +332,23 @@ impl<'a> Shell<'a> {
         /* match command */
         match self.cmds.get(argc_0) {
             Some(cmd_func) => cmd_func(argc, argv),
-            None => println!("unknown command."),
+            None => Shell::puts("unknown command.\n\r"),
         };
     }
 }
 
 fn shell_cmd_help(argc: Vec<&str>, argv: usize) {
-    print!("argc: ");
+    Shell::puts("argc: ");
+
     for arg in argc {
-        print!("{} ", arg);
+        Shell::puts(format!("{} ", arg).as_ref());
     }
 
-    println!("\n\rargv: {}", argv);
+    Shell::puts(format!("\n\rargv: {}\n\r", argv).as_ref());
 }
 
 fn shell_cmd_clear(argc: Vec<&str>, argv: usize) {
     Shell::cls();
-
-    print!("argc: ");
-    for arg in argc {
-        print!("{} ", arg);
-    }
-
-    println!("\n\rargv: {}", argv);
 }
 
 fn main() {
@@ -353,19 +357,8 @@ fn main() {
     shell.add_command("clear", shell_cmd_clear);
 
     shell.start();
-
     loop {
-        shell.listen();
-        //shell.parse("test");
+        let cmd = shell.listen().unwrap();
+        shell.parse(cmd.as_str());
     }
-
-    /*
-        let stdin = io::stdin();
-        let mut new_cmd = String::new();
-        loop {
-            stdin.read_line(&mut new_cmd);
-            shell.parse(new_cmd.as_str());
-            new_cmd.clear();
-        }
-    */
 }
