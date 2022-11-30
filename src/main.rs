@@ -386,7 +386,7 @@ impl<'a> Shell<'a> {
                                 continue;
                             }
 
-                            if self.history_disp_curr > 1 {
+                            if self.history_disp_curr >= 1 {
                                 /* display an old command from the history */
                                 self.get_history_arrow_down();
                                 self.history_disp_curr -= 1;
