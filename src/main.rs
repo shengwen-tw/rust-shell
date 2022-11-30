@@ -90,6 +90,10 @@ impl<'a> Shell<'a> {
         ncurses::scrollok(win, true);
     }
 
+    fn add_command(&mut self, cmd_name: &'a str, cmd_func: fn(Vec<&str>, usize)) {
+        self.cmds.insert(cmd_name, Box::new(cmd_func));
+    }
+
     fn getc() -> i32 {
         ncurses::getch()
     }
@@ -188,9 +192,19 @@ impl<'a> Shell<'a> {
         }
     }
 
-    fn reset_data(&mut self) {
+    fn reset_line_tracking(&mut self) {
         self.cursor_pos = 0;
         self.char_cnt = 0;
+    }
+
+    fn reset_history_tracking(&mut self) {
+        /* reorder the command in hsitory according to the current display number */
+        for i in 0..self.history_disp_curr {
+            let cmd = self.history.pop_back().unwrap();
+            self.history.push_front(cmd);
+        }
+
+        self.history_disp_curr = 0;
         self.read_history = false;
     }
 
@@ -260,7 +274,7 @@ impl<'a> Shell<'a> {
         self.char_cnt = self.typing_preserve.len();
     }
 
-    fn listen(&mut self) -> Option<String> {
+    fn listen(&mut self) -> String {
         Shell::puts(self.prompt_msg);
 
         loop {
@@ -280,7 +294,6 @@ impl<'a> Shell<'a> {
                 }
                 c if c == TermKeys::CtrlC as i32 => {
                     self.ctrl_c_handler();
-                    return None;
                 }
                 c if c == TermKeys::CtrlD as i32 => continue,
                 c if c == TermKeys::CtrlE as i32 => {
@@ -299,6 +312,9 @@ impl<'a> Shell<'a> {
                 c if c == TermKeys::Tab as i32 => continue,
                 c if c == TermKeys::CtrlJ as i32 => continue,
                 c if c == TermKeys::Enter as i32 => {
+                    /* reset the history tracking so the command is placed chronologically */
+                    self.reset_history_tracking();
+
                     /* generate the command string for function return */
                     let mut cmd = String::new();
                     self.get_command_string(&mut cmd);
@@ -310,9 +326,9 @@ impl<'a> Shell<'a> {
 
                     /* move to next line */
                     self.new_line();
-                    self.reset_data();
+                    self.reset_line_tracking();
 
-                    return Some(cmd);
+                    return cmd;
                 }
                 c if c == TermKeys::CtrlK as i32 => continue,
                 c if c == TermKeys::CtrlL as i32 => continue,
@@ -438,10 +454,6 @@ impl<'a> Shell<'a> {
         }
     }
 
-    fn add_command(&mut self, cmd_name: &'a str, cmd_func: fn(Vec<&str>, usize)) {
-        self.cmds.insert(cmd_name, Box::new(cmd_func));
-    }
-
     fn parse(&mut self, cmd: &str) {
         /* split string into vector of arguments */
         let argc: Vec<&str> = cmd.split_whitespace().collect();
@@ -482,7 +494,7 @@ fn main() {
 
     shell.start();
     loop {
-        let cmd = shell.listen().unwrap();
+        let cmd = shell.listen();
         shell.parse(cmd.as_str());
     }
 }
