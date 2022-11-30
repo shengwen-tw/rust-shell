@@ -26,7 +26,7 @@ A lightweight Command-Line Interface (CLI) written in Rust.
 
 **Up Arrow, Down Arrow**: Display previous history of typings
 
-## build and run
+## Build and Run
 
 ```
 cargo build
