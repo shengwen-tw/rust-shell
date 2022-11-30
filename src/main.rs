@@ -1,11 +1,12 @@
 use ncurses::*;
 use std::char;
 use std::collections::HashMap;
+use std::collections::LinkedList;
 use std::process;
 use std::str;
 
 const CMD_LEN_MAX: usize = 50;
-const HISTORY_MAX_SIZE: usize = 5;
+const HISTORY_MAX_SIZE: usize = 50;
 
 enum TermKeys {
     NullCh = 0,      /* null character */
@@ -57,9 +58,11 @@ struct Shell<'a> {
     prompt_msg: &'a str,
     prompt_len: usize,
     buf: [u32; CMD_LEN_MAX],
+    history: LinkedList<String>,
     history_num: isize,
     history_disp_curr: isize,
     read_history: bool,
+    typing_preserve: String,
 }
 
 impl<'a> Shell<'a> {
@@ -71,9 +74,11 @@ impl<'a> Shell<'a> {
             prompt_msg,
             prompt_len: prompt_msg.len(),
             buf: [0; CMD_LEN_MAX],
+            history: LinkedList::new(),
             history_num: 0,
             history_disp_curr: 0,
             read_history: false,
+            typing_preserve: String::new(),
         }
     }
 
@@ -178,27 +183,70 @@ impl<'a> Shell<'a> {
         self.read_history = false;
     }
 
-    fn push_new_history(&mut self) {
-        //shell_history_t *curr_history;
-
+    fn push_new_history(&mut self, cmd: &String) {
         if self.history_num < (HISTORY_MAX_SIZE as isize) {
-            //curr_history = &self.history[HISTORY_MAX_SIZE - self.history_num - 1];
-            //strcpy(self.cmd, cmd);
+            self.history.push_front(cmd.clone());
             self.history_num += 1;
-            //self.history_top = curr_history;
             return;
+        } else {
+            self.history.push_front(cmd.clone());
+            self.history.pop_back();
         }
+    }
 
-        /* if history list is full, drop the oldest one */
-        //shell_history_t *history_end = shell->history_top;
-        for i in 0..(HISTORY_MAX_SIZE - 1) {
-            //if(history_end.cmd[0] == 0) {
-            //    break;
-            //}
-            //history_end = history_end.next;
+    fn preserve_current_typing(&mut self) {
+        let mut cmd = String::new();
+        self.get_command_string(&mut cmd);
+        self.typing_preserve = cmd;
+    }
+
+    fn print_history(&mut self) {
+        Shell::puts("\n\rhistory:");
+
+        for i in 0..self.history_num {
+            /* pop and and print out the last history command */
+            let curr_cmd = self.history.pop_front().unwrap();
+            Shell::puts(format!("\n\r{}", curr_cmd.as_str()).as_ref());
+
+            //push the command back into the history list
+            self.history.push_back(curr_cmd);
         }
-        //strcpy(history_end.cmd, self.buf);
-        //self.history_top = history_end;
+    }
+
+    fn get_history_arrow_up(&mut self) {
+        /* pop the command from the front of the history list */
+        let cmd = self.history.pop_front().unwrap();
+
+        /* display the command by overwriting the buffer */
+        for (i, c) in cmd.chars().enumerate() {
+            self.buf[i] = c as u32;
+        }
+        self.char_cnt = cmd.len();
+
+        /* push the command into the back of the history list */
+        self.history.push_back(cmd);
+    }
+
+    fn get_history_arrow_down(&mut self) {
+        /* pop the command from the back of the history list */
+        let cmd = self.history.pop_back().unwrap();
+
+        /* display the command by overwriting the buffer */
+        for (i, c) in cmd.chars().enumerate() {
+            self.buf[i] = c as u32;
+        }
+        self.char_cnt = cmd.len();
+
+        /* push the command into the front of the history list */
+        self.history.push_front(cmd);
+    }
+
+    fn restore_user_typing(&mut self) {
+        /* restore the user typing by overwriting the buffer */
+        for (i, c) in self.typing_preserve.chars().enumerate() {
+            self.buf[i] = c as u32;
+        }
+        self.char_cnt = self.typing_preserve.len();
     }
 
     fn listen(&mut self) -> Option<String> {
@@ -246,7 +294,7 @@ impl<'a> Shell<'a> {
 
                     /* push command to the history if it is not empty */
                     if self.char_cnt > 0 {
-                        self.push_new_history();
+                        self.push_new_history(&cmd);
                     }
 
                     /* move to next line */
@@ -280,51 +328,50 @@ impl<'a> Shell<'a> {
                     let seq1 = Shell::getc();
                     if seq0 == TermKeys::EscSeq2 as i32 {
                         if seq1 == TermKeys::UpArrow as i32 {
+                            /* ignore the event if no command is stored in the history */
                             if self.history_num == 0 {
                                 continue;
                             }
 
+                            /* set up the flag to indicate the user triggered the history reading */
                             if self.read_history == false {
-                                //strcpy(self.typing_preserve, self.buf);
-                                //self.history_disp = self.history_top;
-                                self.history_disp_curr = 0;
-                            } else {
-                                //self.history_disp = self.history_disp.next;
+                                self.preserve_current_typing(); //save current input words
+                                self.history_disp_curr = 0; //counter set zero (i.e., read from the latest record)
+                                self.read_history = true; //history reading is on
                             }
 
-                            /* restore user's typing if finished traveling through the whole list */
                             if self.history_disp_curr < self.history_num {
-                                //strcpy(self.buf, self.history_disp.cmd);
+                                /* display an old command from the history */
+                                self.get_history_arrow_up();
                                 self.history_disp_curr += 1;
                             } else {
-                                //strcpy(self.buf, self.history.cmd);
-                                //self.history_disp = self.history_top;
+                                /* restore user's typing if the whole list has been traversed */
+                                self.restore_user_typing();
                                 self.history_disp_curr = 0;
                                 self.read_history = false;
                             }
 
-                            //self.char_cnt = strlen(self.buf);
+                            /* relocate the cursor position and refresh the line */
                             self.cursor_pos = self.char_cnt;
                             self.refresh_line();
                         } else if seq1 == TermKeys::DownArrow as i32 {
+                            /* ignore the event before the up arrow is first pressed */
                             if self.read_history == false {
                                 continue;
-                            } else {
-                                //self.history_disp = self.history_disp.last;
                             }
 
-                            /* restore user's typing if finished traveling through the whole list */
                             if self.history_disp_curr > 1 {
-                                //strcpy(self.buf, self.history_disp.cmd);
+                                /* display an old command from the history */
+                                self.get_history_arrow_down();
                                 self.history_disp_curr -= 1;
                             } else {
-                                //strcpy(self.buf, self.typing_preserve);
-                                //self.history_disp = self.history_top;
+                                /* restore user's typing if the whole list has been traversed */
+                                self.restore_user_typing();
                                 self.history_disp_curr = 0;
                                 self.read_history = false;
                             }
 
-                            //self.char_cnt = strlen(self.buf);
+                            /* relocate the cursor position and refresh the line */
                             self.cursor_pos = self.char_cnt;
                             self.refresh_line();
                         } else if seq1 == TermKeys::RightArrow as i32 {
