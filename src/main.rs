@@ -2,7 +2,6 @@ use ncurses::*;
 use std::char;
 use std::collections::HashMap;
 use std::collections::LinkedList;
-use std::process;
 use std::str;
 
 const CMD_LEN_MAX: usize = 50;
@@ -36,7 +35,6 @@ enum TermKeys {
     CtrlY = 25,      /* ctrl + y */
     CtrlZ = 26,      /* ctrl + z */
     EscSeq1 = 27,    /* first byte of the vt100/xterm escape sequence */
-    Space = 32,      /* space */
     Delete = 51,     /* delete, third byte of the xterm escape sequence */
     UpArrow = 65,    /* up arrow, third byte of the xterm escape sequence */
     DownArrow = 66,  /* down arrow, third byte of the xterm escape sequence */
@@ -199,7 +197,7 @@ impl<'a> Shell<'a> {
 
     fn reset_history_tracking(&mut self) {
         /* reorder the command in hsitory according to the current display number */
-        for i in 0..self.history_disp_curr {
+        for _i in 0..self.history_disp_curr {
             let cmd = self.history.pop_back().unwrap();
             self.history.push_front(cmd);
         }
@@ -225,10 +223,11 @@ impl<'a> Shell<'a> {
         self.typing_preserve = cmd;
     }
 
+    #[allow(dead_code)]
     fn print_history(&mut self) {
         Shell::puts("\n\rhistory:");
 
-        for i in 0..self.history_num {
+        for _i in 0..self.history_num {
             /* pop and and print out the last history command */
             let curr_cmd = self.history.pop_front().unwrap();
             Shell::puts(format!("\n\r{}", curr_cmd.as_str()).as_ref());
@@ -483,7 +482,7 @@ fn shell_cmd_help(argc: Vec<&str>, argv: usize) {
     Shell::puts(format!("\n\rargv: {}\n\r", argv).as_ref());
 }
 
-fn shell_cmd_clear(argc: Vec<&str>, argv: usize) {
+fn shell_cmd_clear(_argc: Vec<&str>, _argv: usize) {
     Shell::cls();
 }
 
