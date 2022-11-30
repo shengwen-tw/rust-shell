@@ -144,6 +144,16 @@ impl<'a> Shell<'a> {
         }
     }
 
+    fn new_line(&self) {
+        /* shift the cursor to the line end before switching the new line,
+         * otherwise the the user input might be cut */
+        let mut cur_x = 0;
+        let mut cur_y = 0;
+        ncurses::getyx(stdscr(), &mut cur_y, &mut cur_x);
+        ncurses::mv(cur_y, (self.prompt_len + self.char_cnt) as i32);
+        Shell::puts("\n\r");
+    }
+
     fn refresh_line(&self) {
         /* clear the current line */
         let mut cur_x = 0;
@@ -299,8 +309,8 @@ impl<'a> Shell<'a> {
                     }
 
                     /* move to next line */
+                    self.new_line();
                     self.reset_data();
-                    Shell::puts("\n\r");
 
                     return Some(cmd);
                 }
