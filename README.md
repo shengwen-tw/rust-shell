@@ -6,7 +6,7 @@ A lightweight Command-Line Interface (CLI) written in Rust.
 
 1. Single line mode
 
-2. History tracking of the user input commands
+2. History tracking of user inputs
 
 3. Command parser
 
