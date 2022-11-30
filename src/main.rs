@@ -6,7 +6,7 @@ use std::process;
 use std::str;
 
 const CMD_LEN_MAX: usize = 50;
-const HISTORY_MAX_SIZE: usize = 50;
+const HISTORY_MAX_NUM: usize = 50;
 
 enum TermKeys {
     NullCh = 0,      /* null character */
@@ -83,10 +83,11 @@ impl<'a> Shell<'a> {
     }
 
     fn start(&self) {
-        ncurses::initscr();
+        let win = ncurses::initscr();
         ncurses::raw();
         ncurses::nonl();
         ncurses::noecho();
+        ncurses::scrollok(win, true);
     }
 
     fn getc() -> i32 {
@@ -184,7 +185,7 @@ impl<'a> Shell<'a> {
     }
 
     fn push_new_history(&mut self, cmd: &String) {
-        if self.history_num < (HISTORY_MAX_SIZE as isize) {
+        if self.history_num < (HISTORY_MAX_NUM as isize) {
             self.history.push_front(cmd.clone());
             self.history_num += 1;
             return;
