@@ -5,6 +5,7 @@ use std::process;
 use std::str;
 
 const CMD_LEN_MAX: usize = 50;
+const HISTORY_MAX_SIZE: usize = 5;
 
 enum TermKeys {
     NullCh = 0,      /* null character */
@@ -53,10 +54,12 @@ struct Shell<'a> {
     cmds: HashMap<&'a str, Box<dyn Fn(Vec<&str>, usize)>>,
     cursor_pos: usize,
     char_cnt: usize,
-    read_history: bool,
     prompt_msg: &'a str,
     prompt_len: usize,
     buf: [u32; CMD_LEN_MAX],
+    history_num: isize,
+    history_disp_curr: isize,
+    read_history: bool,
 }
 
 impl<'a> Shell<'a> {
@@ -65,10 +68,12 @@ impl<'a> Shell<'a> {
             cmds: HashMap::new(),
             cursor_pos: 0,
             char_cnt: 0,
-            read_history: false,
             prompt_msg,
             prompt_len: prompt_msg.len(),
             buf: [0; CMD_LEN_MAX],
+            history_num: 0,
+            history_disp_curr: 0,
+            read_history: false,
         }
     }
 
@@ -77,8 +82,6 @@ impl<'a> Shell<'a> {
         ncurses::raw();
         ncurses::nonl();
         ncurses::noecho();
-
-        //Shell::puts(self.prompt_msg);
     }
 
     fn getc() -> i32 {
@@ -175,8 +178,27 @@ impl<'a> Shell<'a> {
         self.read_history = false;
     }
 
-    fn push_new_history(&self) {
-        //TODO
+    fn push_new_history(&mut self) {
+        //shell_history_t *curr_history;
+
+        if self.history_num < (HISTORY_MAX_SIZE as isize) {
+            //curr_history = &self.history[HISTORY_MAX_SIZE - self.history_num - 1];
+            //strcpy(self.cmd, cmd);
+            self.history_num += 1;
+            //self.history_top = curr_history;
+            return;
+        }
+
+        /* if history list is full, drop the oldest one */
+        //shell_history_t *history_end = shell->history_top;
+        for i in 0..(HISTORY_MAX_SIZE - 1) {
+            //if(history_end.cmd[0] == 0) {
+            //    break;
+            //}
+            //history_end = history_end.next;
+        }
+        //strcpy(history_end.cmd, self.buf);
+        //self.history_top = history_end;
     }
 
     fn listen(&mut self) -> Option<String> {
@@ -258,9 +280,53 @@ impl<'a> Shell<'a> {
                     let seq1 = Shell::getc();
                     if seq0 == TermKeys::EscSeq2 as i32 {
                         if seq1 == TermKeys::UpArrow as i32 {
-                            //TODO
+                            if self.history_num == 0 {
+                                continue;
+                            }
+
+                            if self.read_history == false {
+                                //strcpy(self.typing_preserve, self.buf);
+                                //self.history_disp = self.history_top;
+                                self.history_disp_curr = 0;
+                            } else {
+                                //self.history_disp = self.history_disp.next;
+                            }
+
+                            /* restore user's typing if finished traveling through the whole list */
+                            if self.history_disp_curr < self.history_num {
+                                //strcpy(self.buf, self.history_disp.cmd);
+                                self.history_disp_curr += 1;
+                            } else {
+                                //strcpy(self.buf, self.history.cmd);
+                                //self.history_disp = self.history_top;
+                                self.history_disp_curr = 0;
+                                self.read_history = false;
+                            }
+
+                            //self.char_cnt = strlen(self.buf);
+                            self.cursor_pos = self.char_cnt;
+                            self.refresh_line();
                         } else if seq1 == TermKeys::DownArrow as i32 {
-                            //TODO
+                            if self.read_history == false {
+                                continue;
+                            } else {
+                                //self.history_disp = self.history_disp.last;
+                            }
+
+                            /* restore user's typing if finished traveling through the whole list */
+                            if self.history_disp_curr > 1 {
+                                //strcpy(self.buf, self.history_disp.cmd);
+                                self.history_disp_curr -= 1;
+                            } else {
+                                //strcpy(self.buf, self.typing_preserve);
+                                //self.history_disp = self.history_top;
+                                self.history_disp_curr = 0;
+                                self.read_history = false;
+                            }
+
+                            //self.char_cnt = strlen(self.buf);
+                            self.cursor_pos = self.char_cnt;
+                            self.refresh_line();
                         } else if seq1 == TermKeys::RightArrow as i32 {
                             self.cursor_shift_one_right();
                         } else if seq1 == TermKeys::LeftArrow as i32 {
